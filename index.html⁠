@@ -1,48 +1,149 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Value Bets Finder</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; background: #f4f4f9; color: #333; }
-    h1 { text-align: center; font-size: 1.5rem; }
-    .btn { display: block; width: 100%; padding: 15px; background: #0070f3; color: white; text-align: center; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
-    .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .match { font-weight: bold; font-size: 1.1rem; }
-    .pick { color: #2e7d32; font-weight: bold; margin-top: 5px; }
-    .price { background: #e8f5e9; padding: 3px 8px; border-radius: 4px; color: #1b5e20; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Value Bets Finder</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f4f6f8;
+            color: #333;
+            margin: 0;
+            padding: 16px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 1.5rem;
+            text-align: center;
+            color: #1d3557;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: #fff;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 12px;
+        }
+        .match-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: #457b9d;
+        }
+        .details {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 12px;
+        }
+        .btn {
+            background-color: #2a9d8f;
+            color: white;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn:active {
+            background-color: #21867a;
+        }
+        .value-badge {
+            background-color: #e63946;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            display: inline-block;
+        }
+        #loading {
+            text-align: center;
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
-  <h1>⚽ Value Bets Finder</h1>
-  <button class="btn" onclick="loadPredictions()">Carica Previsioni</button>
-  <div id="results">Premi il pulsante per caricare le quote filtrate.</div>
-
-  <script>
-    async function loadPredictions() {
-      const resContainer = document.getElementById('results');
-      resContainer.innerHTML = 'Caricamento in corso...';
-      try {
-        const response = await fetch('/.netlify/functions/get-predictions');
-        const data = await response.json();
+    <div class="container">
+        <h1>⚽ Value Bets Finder</h1>
         
-        if (!data.success || !data.predictions || data.predictions.length === 0) {
-          resContainer.innerHTML = 'Nessuna quota trovata o errore nella risposta.';
-          return;
-        }
+        <div class="card">
+            <label for="apiKey" style="font-size: 0.9rem; font-weight: bold; display: block; margin-bottom: 6px;">The Odds API Key:</label>
+            <input type="text" id="apiKey" placeholder="Inserisci la tua API Key" style="width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 12px;">
+            <button class="btn" onclick="caricaValueBets()">Carica Previsioni</button>
+        </div>
 
-        resContainer.innerHTML = data.predictions.map(p => `
-          <div class="card">
-            <div class="match">${p.match}</div>
-            <div class="pick">Esito: ${p.selection} - Quota: <span class="price">${p.price}</span></div>
-            <small>Bookmaker: ${p.bookmaker}</small>
-          </div>
-        `).join('');
-      } catch (e) {
-        resContainer.innerHTML = 'Errore durante la connessione alla funzione.';
-      }
-    }
-  </script>
+        <div id="loading">Analisi delle quote in corso... ⏳</div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function caricaValueBets() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const resultsDiv = document.getElementById('results');
+            const loadingDiv = document.getElementById('loading');
+
+            if (!apiKey) {
+                alert('Per favore inserisci la tua API Key di The Odds API');
+                return;
+            }
+
+            resultsDiv.innerHTML = '';
+            loadingDiv.style.display = 'block';
+
+            try {
+                // Esempio di chiamata per il calcio europeo (es. Serie A o Champions)
+                const sport = 'soccer_italy_serie_a';
+                const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h&oddsFormat=decimal`;
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Errore nel recupero dei dati dalle API. Verifica la chiave.');
+                }
+
+                const data = await response.json();
+                loadingDiv.style.display = 'none';
+
+                if (data.length === 0) {
+                    resultsDiv.innerHTML = '<div class="card">Nessuna partita trovata al momento per questo campionato.</div>';
+                    return;
+                }
+
+                data.forEach(match => {
+                    const home = match.home_team;
+                    const away = match.away_team;
+                    const bookmaker = match.bookmakers[0] ? match.bookmakers[0].title : 'Bookmaker';
+                    
+                    // Preleviamo le quote 1X2 se disponibili
+                    let oddsText = '';
+                    if (match.bookmakers[0] && match.bookmakers[0].markets[0]) {
+                        const outcomes = match.bookmakers[0].markets[0].outcomes;
+                        oddsText = outcomes.map(o => `${o.name}: <b>${o.price}</b>`).join(' | ');
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div class="match-title">${home} vs ${away}</div>
+                        <div class="details">Bookmaker: ${bookmaker}<br>Quote: ${oddsText}</div>
+                        <div class="value-badge">ANALIZZATO</div>
+                    `;
+                    resultsDiv.appendChild(card);
+                });
+
+            } catch (error) {
+                loadingDiv.style.display = 'none';
+                alert(error.message);
+            }
+        }
+    </script>
 </body>
 </html>
+
