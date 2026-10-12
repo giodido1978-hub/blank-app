@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Value Bets Finder</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #10b981;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border: #334155;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            text-align: center;
+            color: var(--accent);
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-bottom: 6px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background-color: #0f172a;
+            color: var(--text-main);
+            font-size: 1rem;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: #000;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: opacity 0.2s;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        .bet-card {
+            border-left: 4px solid var(--accent);
+        }
+
+        .match-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .match-info {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-bottom: 10px;
+        }
+
+        .odds-row {
+            display: flex;
+            justify-content: space-between;
+            background-color: #0f172a;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            margin-top: 6px;
+        }
+
+        .value-badge {
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--text-sub);
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Value Bets Finder</h1>
+
+    <div class="card">
+        <label for="apiKey">Chiave API (The Odds API)</label>
+        <input type="text" id="apiKey" placeholder="Inserisci la tua API Key">
+
+        <label for="sport">Campionato</label>
+        <select id="sport">
+            <option value="soccer_italy_serie_a">Serie A (Italia)</option>
+            <option value="soccer_uefa_champions_league">Champions League</option>
+            <option value="soccer_uefa_europa_league">Europa League</option>
+            <option value="soccer_epl">Premier League (Inghilterra)</option>
+            <option value="soccer_spain_la_liga">La Liga (Spagna)</option>
+        </select>
+
+        <button onclick="fetchOdds()">Cerca Value Bets</button>
+    </div>
+
+    <div id="results"></div>
+</div>
+
+<script>
+    async function fetchOdds() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const sport = document.getElementById('sport').value;
+        const resultsDiv = document.getElementById('results');
+
+        if (!apiKey) {
+            alert('Inserisci prima la tua API Key di The Odds API.');
+            return;
+        }
+
+        resultsDiv.innerHTML = '<div class="loading">Caricamento quote in corso...</div>';
+
+        try {
+            const response = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h`);
+            
+            if (!response.ok) {
+                throw new Error('Errore durante il recupero dei dati. Verifica l\'API Key.');
+            }
+
+            const data = await response.json();
+            renderResults(data);
+        } catch (error) {
+            resultsDiv.innerHTML = `<div class="card" style="border-color: #ef4444; color: #ef4444;">${error.message}</div>`;
+        }
+    }
+
+    function renderResults(matches) {
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = '';
+
+        if (!matches || matches.length === 0) {
+            resultsDiv.innerHTML = '<div class="card">Nessuna partita o quota trovata.</div>';
+            return;
+        }
+
+        matches.forEach(match => {
+            const card = document.createElement('div');
+            card.className = 'card bet-card';
+
+            const date = new Date(match.commence_time).toLocaleString('it-IT', {
+                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+            });
+
+            let bookmakersHtml = '';
+            match.bookmakers.slice(0, 3).forEach(bm => {
+                const market = bm.markets.find(m => m.key === 'h2h');
+                if (market) {
+                    const outcomes = market.outcomes.map(o => `${o.name}: <strong>${o.price}</strong>`).join(' | ');
+                    bookmakersHtml += `
+                        <div class="odds-row">
+                            <span>${bm.title}</span>
+                            <span>${outcomes}</span>
+                        </div>
+                    `;
+                }
+            });
+
+            card.innerHTML = `
+                <div class="match-title">${match.home_team} vs ${match.away_team}</div>
+                <div class="match-info">Inizio: ${date}</div>
+                ${bookmakersHtml || '<div class="match-info">Nessuna quota 1X2 disponibile</div>'}
+            `;
+
+            resultsDiv.appendChild(card);
+        });
+    }
+</script>
+
+</body>
+</html>
