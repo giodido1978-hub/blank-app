@@ -1,0 +1,56 @@
+exports.handler = async function(event, context) {
+  const API_KEY = process.env.THE_ODDS_API_KEY;
+  
+  if (!API_KEY) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Chiave API non configurata" })
+    };
+  }
+
+  try {
+    // Chiamata a The Odds API per il calcio europeo
+    const response = await fetch(
+      `https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?apiKey=${API_KEY}&regions=eu&markets=h2h,totals`
+    );
+    const data = await response.json();
+
+    // Logica di filtraggio Value Bets (quota >= 1.85, escludendo pareggi)
+    const predictions = [];
+    
+    if (Array.isArray(data)) {
+      data.forEach(match => {
+        if (match.bookmakers && match.bookmakers.length > 0) {
+          const bookmaker = match.bookmakers[0];
+          const h2hMarket = bookmaker.markets.find(m => m.key === 'h2h');
+          
+          if (h2hMarket) {
+            h2hMarket.outcomes.forEach(outcome => {
+              // Escludiamo il pareggio ("Draw") e applichiamo il filtro quota >= 1.85
+              if (outcome.name !== 'Draw' && outcome.price >= 1.85) {
+                predictions.push({
+                  match: `${match.home_team} vs ${match.away_team}`,
+                  selection: outcome.name,
+                  price: outcome.price,
+                  bookmaker: bookmaker.title,
+                  commence_time: match.commence_time
+                });
+              }
+            });
+          }
+        }
+      });
+    }
+
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ success: true, count: predictions.length, predictions })
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message })
+    };
+  }
+};
