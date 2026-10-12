@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Value Bets Finder</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; background: #f4f4f9; color: #333; }
+    h1 { text-align: center; font-size: 1.5rem; }
+    .btn { display: block; width: 100%; padding: 15px; background: #0070f3; color: white; text-align: center; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
+    .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .match { font-weight: bold; font-size: 1.1rem; }
+    .pick { color: #2e7d32; font-weight: bold; margin-top: 5px; }
+    .price { background: #e8f5e9; padding: 3px 8px; border-radius: 4px; color: #1b5e20; }
+  </style>
+</head>
+<body>
+  <h1>⚽ Value Bets Finder</h1>
+  <button class="btn" onclick="loadPredictions()">Carica Previsioni</button>
+  <div id="results">Premi il pulsante per caricare le quote filtrate.</div>
+
+  <script>
+    async function loadPredictions() {
+      const resContainer = document.getElementById('results');
+      resContainer.innerHTML = 'Caricamento in corso...';
+      try {
+        const response = await fetch('/.netlify/functions/get-predictions');
+        const data = await response.json();
+        
+        if (!data.success || !data.predictions || data.predictions.length === 0) {
+          resContainer.innerHTML = 'Nessuna quota trovata o errore nella risposta.';
+          return;
+        }
+
+        resContainer.innerHTML = data.predictions.map(p => `
+          <div class="card">
+            <div class="match">${p.match}</div>
+            <div class="pick">Esito: ${p.selection} - Quota: <span class="price">${p.price}</span></div>
+            <small>Bookmaker: ${p.bookmaker}</small>
+          </div>
+        `).join('');
+      } catch (e) {
+        resContainer.innerHTML = 'Errore durante la connessione alla funzione.';
+      }
+    }
+  </script>
+</body>
+</html>
