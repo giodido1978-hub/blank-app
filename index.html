@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Value Bets Finder</title>
+    <title>Football Data Viewer</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -72,14 +72,9 @@
             border: none;
             cursor: pointer;
             margin-top: 8px;
-            transition: opacity 0.2s;
         }
 
-        button:active {
-            opacity: 0.8;
-        }
-
-        .bet-card {
+        .match-card {
             border-left: 4px solid var(--accent);
         }
 
@@ -92,22 +87,6 @@
         .match-info {
             font-size: 0.85rem;
             color: var(--text-sub);
-            margin-bottom: 10px;
-        }
-
-        .odds-row {
-            display: flex;
-            justify-content: space-between;
-            background-color: #0f172a;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            margin-top: 6px;
-        }
-
-        .value-badge {
-            color: var(--accent);
-            font-weight: bold;
         }
 
         .loading {
@@ -120,89 +99,79 @@
 <body>
 
 <div class="container">
-    <h1>Value Bets Finder</h1>
+    <h1>Football Data Viewer</h1>
 
     <div class="card">
-        <label for="apiKey">Chiave API (The Odds API)</label>
-        <input type="text" id="apiKey" placeholder="Inserisci la tua API Key">
+        <label for="apiKey">Chiave API (Football-Data.org)</label>
+        <input type="text" id="apiKey" placeholder="Inserisci il tuo X-Auth-Token">
 
-        <label for="sport">Campionato</label>
-        <select id="sport">
-            <option value="soccer_italy_serie_a">Serie A (Italia)</option>
-            <option value="soccer_uefa_champions_league">Champions League</option>
-            <option value="soccer_uefa_europa_league">Europa League</option>
-            <option value="soccer_epl">Premier League (Inghilterra)</option>
-            <option value="soccer_spain_la_liga">La Liga (Spagna)</option>
+        <label for="competition">Campionato</label>
+        <select id="competition">
+            <option value="SA">Serie A (Italia)</option>
+            <option value="CL">Champions League</option>
+            <option value="EL">Europa League</option>
+            <option value="PL">Premier League (Inghilterra)</option>
+            <option value="PD">La Liga (Spagna)</option>
         </select>
 
-        <button onclick="fetchOdds()">Cerca Value Bets</button>
+        <button onclick="fetchMatches()">Mostra Partite</button>
     </div>
 
     <div id="results"></div>
 </div>
 
 <script>
-    async function fetchOdds() {
+    async function fetchMatches() {
         const apiKey = document.getElementById('apiKey').value.trim();
-        const sport = document.getElementById('sport').value;
+        const comp = document.getElementById('competition').value;
         const resultsDiv = document.getElementById('results');
 
         if (!apiKey) {
-            alert('Inserisci prima la tua API Key di The Odds API.');
+            alert('Inserisci prima la chiave API di Football-Data.org');
             return;
         }
 
-        resultsDiv.innerHTML = '<div class="loading">Caricamento quote in corso...</div>';
+        resultsDiv.innerHTML = '<div class="loading">Caricamento in corso...</div>';
 
         try {
-            const response = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${apiKey}&regions=eu&markets=h2h`);
-            
+            const response = await fetch(`https://api.football-data.org/v4/competitions/${comp}/matches?status=SCHEDULED`, {
+                headers: {
+                    'X-Auth-Token': apiKey
+                }
+            });
+
             if (!response.ok) {
-                throw new Error('Errore durante il recupero dei dati. Verifica l\'API Key.');
+                const errData = await response.json();
+                throw new Error(errData.message || 'Errore API Football-Data.org. Verifica il token.');
             }
 
             const data = await response.json();
-            renderResults(data);
+            renderMatches(data.matches);
         } catch (error) {
             resultsDiv.innerHTML = `<div class="card" style="border-color: #ef4444; color: #ef4444;">${error.message}</div>`;
         }
     }
 
-    function renderResults(matches) {
+    function renderMatches(matches) {
         const resultsDiv = document.getElementById('results');
         resultsDiv.innerHTML = '';
 
         if (!matches || matches.length === 0) {
-            resultsDiv.innerHTML = '<div class="card">Nessuna partita o quota trovata.</div>';
+            resultsDiv.innerHTML = '<div class="card">Nessuna partita in programma trovata.</div>';
             return;
         }
 
-        matches.forEach(match => {
+        matches.slice(0, 10).forEach(match => {
             const card = document.createElement('div');
-            card.className = 'card bet-card';
+            card.className = 'card match-card';
 
-            const date = new Date(match.commence_time).toLocaleString('it-IT', {
+            const date = new Date(match.utcDate).toLocaleString('it-IT', {
                 day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
             });
 
-            let bookmakersHtml = '';
-            match.bookmakers.slice(0, 3).forEach(bm => {
-                const market = bm.markets.find(m => m.key === 'h2h');
-                if (market) {
-                    const outcomes = market.outcomes.map(o => `${o.name}: <strong>${o.price}</strong>`).join(' | ');
-                    bookmakersHtml += `
-                        <div class="odds-row">
-                            <span>${bm.title}</span>
-                            <span>${outcomes}</span>
-                        </div>
-                    `;
-                }
-            });
-
             card.innerHTML = `
-                <div class="match-title">${match.home_team} vs ${match.away_team}</div>
-                <div class="match-info">Inizio: ${date}</div>
-                ${bookmakersHtml || '<div class="match-info">Nessuna quota 1X2 disponibile</div>'}
+                <div class="match-title">${match.homeTeam.name} vs ${match.awayTeam.name}</div>
+                <div class="match-info">Data: ${date} | Giornata: ${match.matchday || '-'}</div>
             `;
 
             resultsDiv.appendChild(card);
