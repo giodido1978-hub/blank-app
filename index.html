@@ -134,21 +134,24 @@
         resultsDiv.innerHTML = '<div class="loading">Caricamento in corso...</div>';
 
         const targetUrl = `https://api.football-data.org/v4/competitions/${comp}/matches?status=SCHEDULED`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        
+        // Uso del proxy AllOrigins per evitare problemi CORS ed header
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl + '&X-Auth-Token=' + apiKey)}`;
 
         try {
-            const response = await fetch(proxyUrl, {
-                headers: {
-                    'X-Auth-Token': apiKey
-                }
-            });
+            const response = await fetch(proxyUrl);
 
             if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.message || 'Errore durante la chiamata API.');
+                throw new Error('Errore nella connessione al server.');
             }
 
-            const data = await response.json();
+            const wrapperData = await response.json();
+            const data = JSON.parse(wrapperData.contents);
+
+            if (data.message) {
+                throw new Error(data.message);
+            }
+
             renderMatches(data.matches);
         } catch (error) {
             resultsDiv.innerHTML = `<div class="card" style="border-color: #ef4444; color: #ef4444;">Errore: ${error.message}</div>`;
