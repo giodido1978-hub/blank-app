@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Data Viewer</title>
+    <title>Football Daily Matches</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -53,7 +53,7 @@
             margin-bottom: 6px;
         }
 
-        input, select, button {
+        input, button {
             width: 100%;
             padding: 12px;
             border-radius: 8px;
@@ -76,11 +76,20 @@
 
         .match-card {
             border-left: 4px solid var(--accent);
+            margin-bottom: 10px;
+        }
+
+        .comp-title {
+            font-size: 0.9rem;
+            color: var(--accent);
+            font-weight: bold;
+            margin-bottom: 4px;
+            text-transform: uppercase;
         }
 
         .match-title {
             font-weight: bold;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             margin-bottom: 4px;
         }
 
@@ -99,31 +108,28 @@
 <body>
 
 <div class="container">
-    <h1>Football Data Viewer</h1>
+    <h1>Partite del Giorno</h1>
 
     <div class="card">
         <label for="apiKey">Chiave API (Football-Data.org)</label>
         <input type="text" id="apiKey" placeholder="Inserisci il tuo X-Auth-Token">
 
-        <label for="competition">Campionato</label>
-        <select id="competition">
-            <option value="SA">Serie A (Italia)</option>
-            <option value="CL">Champions League</option>
-            <option value="EL">Europa League</option>
-            <option value="PL">Premier League (Inghilterra)</option>
-            <option value="PD">La Liga (Spagna)</option>
-        </select>
+        <label for="matchDate">Seleziona Data</label>
+        <input type="date" id="matchDate">
 
-        <button onclick="fetchMatches()">Mostra Partite</button>
+        <button onclick="fetchAllMatches()">Cerca Partite di Oggi</button>
     </div>
 
     <div id="results"></div>
 </div>
 
 <script>
-    async function fetchMatches() {
+    // Imposta la data di oggi come default nel selettore
+    document.getElementById('matchDate').valueAsDate = new Date();
+
+    async function fetchAllMatches() {
         const apiKey = document.getElementById('apiKey').value.trim();
-        const comp = document.getElementById('competition').value;
+        const selectedDate = document.getElementById('matchDate').value;
         const resultsDiv = document.getElementById('results');
 
         if (!apiKey) {
@@ -131,11 +137,15 @@
             return;
         }
 
-        resultsDiv.innerHTML = '<div class="loading">Caricamento in corso...</div>';
+        if (!selectedDate) {
+            alert('Seleziona una data valida');
+            return;
+        }
 
-        const targetUrl = `https://api.football-data.org/v4/competitions/${comp}/matches?status=SCHEDULED`;
-        
-        // Uso del proxy AllOrigins per evitare problemi CORS ed header
+        resultsDiv.innerHTML = '<div class="loading">Ricerca partite in corso...</div>';
+
+        // Endpoint per interrogare le partite di una specifica data (YYYY-MM-DD) per tutte le competizioni gratuite
+        const targetUrl = `https://api.football-data.org/v4/matches?date=${selectedDate}`;
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl + '&X-Auth-Token=' + apiKey)}`;
 
         try {
@@ -163,21 +173,25 @@
         resultsDiv.innerHTML = '';
 
         if (!matches || matches.length === 0) {
-            resultsDiv.innerHTML = '<div class="card">Nessuna partita in programma trovata.</div>';
+            resultsDiv.innerHTML = '<div class="card">Nessuna partita trovata per questa data in tutti i campionati monitorati.</div>';
             return;
         }
 
-        matches.slice(0, 10).forEach(match => {
+        matches.forEach(match => {
             const card = document.createElement('div');
             card.className = 'card match-card';
 
-            const date = new Date(match.utcDate).toLocaleString('it-IT', {
-                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+            const time = new Date(match.utcDate).toLocaleTimeString('it-IT', {
+                hour: '2-digit', minute: '2-digit'
             });
 
+            const competitionName = match.competition ? match.competition.name : 'Competizione';
+            const statusText = match.status === 'TIMED' || match.status === 'SCHEDULED' ? `Ore ${time}` : `Stato: ${match.status}`;
+
             card.innerHTML = `
+                <div class="comp-title">${competitionName}</div>
                 <div class="match-title">${match.homeTeam.name} vs ${match.awayTeam.name}</div>
-                <div class="match-info">Data: ${date} | Giornata: ${match.matchday || '-'}</div>
+                <div class="match-info">${statusText} | Giornata: ${match.matchday || '-'}</div>
             `;
 
             resultsDiv.appendChild(card);
