@@ -1,0 +1,41 @@
+exports.handler = async function (event, context) {
+    const { comp, date, apiKey } = event.queryStringParameters || {};
+
+    if (!apiKey) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ error: "Chiave API mancante" })
+        };
+    }
+
+    const targetUrl = `https://api.football-data.org/v4/competitions/${comp}/matches`;
+
+    try {
+        const response = await fetch(targetUrl, {
+            headers: { 'X-Auth-Token': apiKey }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return {
+                statusCode: response.status,
+                body: JSON.stringify({ error: data.message || "Errore API Football-Data" })
+            };
+        }
+
+        return {
+            statusCode: 200,
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
+            body: JSON.stringify(data)
+        };
+    } catch (err) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: err.message })
+        };
+    }
+};
