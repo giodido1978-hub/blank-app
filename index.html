@@ -100,7 +100,7 @@
 <body>
 
 <div class="container">
-    <h1>Partite di Oggi</h1>
+    <h1>Football Data Viewer</h1>
 
     <div class="card">
         <label for="apiKey">Chiave API (Football-Data.org)</label>
@@ -129,7 +129,7 @@
     document.getElementById('matchDate').valueAsDate = new Date();
 
     async function fetchMatches() {
-        const apiKey = document.getElementById('apiKey').value.trim();
+        const apiKey = document.getElementById('apiKey'].value.trim();
         const comp = document.getElementById('competition').value;
         const selectedDate = document.getElementById('matchDate').value;
         const resultsDiv = document.getElementById('results');
@@ -141,17 +141,29 @@
 
         resultsDiv.innerHTML = '<div class="loading">Caricamento in corso...</div>';
 
+        // Utilizziamo CodeTabs come proxy CORS stabile per passare gli header di autenticazione
+        const targetUrl = `https://api.football-data.org/v4/competitions/${comp}/matches`;
+        const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+
         try {
-            // Chiamata alla Netlify Function sullo stesso dominio
-            const response = await fetch(`/.netlify/functions/get-matches?comp=${comp}&apiKey=${apiKey}`);
-            const data = await response.json();
+            const response = await fetch(proxyUrl, {
+                headers: {
+                    'X-Auth-Token': apiKey
+                }
+            });
 
             if (!response.ok) {
-                throw new Error(data.error || 'Errore durante la richiesta');
+                throw new Error(`Errore HTTP: ${response.status}`);
             }
 
-            // Filtra le partite della data selezionata
-            const matches = data.matches.filter(m => m.utcDate.startsWith(selectedDate));
+            const data = await response.json();
+
+            if (data.message) {
+                throw new Error(data.message);
+            }
+
+            // Filtra le partite in base alla data selezionata
+            const matches = (data.matches || []).filter(m => m.utcDate.startsWith(selectedDate));
             renderMatches(matches, selectedDate);
         } catch (error) {
             resultsDiv.innerHTML = `<div class="card" style="border-color: #ef4444; color: #ef4444;">Errore: ${error.message}</div>`;
