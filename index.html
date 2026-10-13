@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Daily Matches</title>
+    <title>Partite di Oggi</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -80,7 +80,7 @@
         }
 
         .comp-title {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--accent);
             font-weight: bold;
             margin-bottom: 4px;
@@ -108,7 +108,7 @@
 <body>
 
 <div class="container">
-    <h1>Partite del Giorno</h1>
+    <h1>Partite di Oggi</h1>
 
     <div class="card">
         <label for="apiKey">Chiave API (Football-Data.org)</label>
@@ -117,63 +117,58 @@
         <label for="matchDate">Seleziona Data</label>
         <input type="date" id="matchDate">
 
-        <button onclick="fetchAllMatches()">Cerca Partite di Oggi</button>
+        <button onclick="fetchTodayMatches()">Cerca Partite</button>
     </div>
 
     <div id="results"></div>
 </div>
 
 <script>
-    // Imposta la data di oggi come default nel selettore
     document.getElementById('matchDate').valueAsDate = new Date();
 
-    async function fetchAllMatches() {
-        const apiKey = document.getElementById('apiKey').value.trim();
+    async function fetchTodayMatches() {
+        const apiKey = document.getElementById('apiKey').value.trim().replace(/[()]/g, '');
         const selectedDate = document.getElementById('matchDate').value;
         const resultsDiv = document.getElementById('results');
 
         if (!apiKey) {
-            alert('Inserisci prima la chiave API di Football-Data.org');
-            return;
-        }
-
-        if (!selectedDate) {
-            alert('Seleziona una data valida');
+            alert('Inserisci prima la chiave API');
             return;
         }
 
         resultsDiv.innerHTML = '<div class="loading">Ricerca partite in corso...</div>';
 
-        // Endpoint per interrogare le partite di una specifica data (YYYY-MM-DD) per tutte le competizioni gratuite
-        const targetUrl = `https://api.football-data.org/v4/matches?date=${selectedDate}`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl + '&X-Auth-Token=' + apiKey)}`;
+        // Lista dei codici competizione principali inclusi nel piano Free
+        const competitions = ['SA', 'CL', 'EL', 'PL', 'PD', 'BL1'];
+        let allMatches = [];
 
         try {
-            const response = await fetch(proxyUrl);
-
-            if (!response.ok) {
-                throw new Error('Errore nella connessione al server.');
+            for (const comp of competitions) {
+                const targetUrl = `https://api.football-data.org/v4/competitions/${comp}/matches?dateFrom=${selectedDate}&dateTo=${selectedDate}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl + '&X-Auth-Token=' + apiKey)}`;
+                
+                const response = await fetch(proxyUrl);
+                if (response.ok) {
+                    const wrapper = await response.json();
+                    const data = JSON.parse(wrapper.contents);
+                    if (data.matches && data.matches.length > 0) {
+                        allMatches = allMatches.concat(data.matches);
+                    }
+                }
             }
 
-            const wrapperData = await response.json();
-            const data = JSON.parse(wrapperData.contents);
-
-            if (data.message) {
-                throw new Error(data.message);
-            }
-
-            renderMatches(data.matches);
+            renderMatches(allMatches, selectedDate);
         } catch (error) {
             resultsDiv.innerHTML = `<div class="card" style="border-color: #ef4444; color: #ef4444;">Errore: ${error.message}</div>`;
         }
     }
 
-    function renderMatches(matches) {
+    function renderMatches(matches, dateStr) {
         const resultsDiv = document.getElementById('results');
         resultsDiv.innerHTML = '';
 
         if (!matches || matches.length === 0) {
-            resultsDiv.innerHTML = '<div class="card">Nessuna partita trovata per questa data in tutti i campionati monitorati.</div>';
+            resultsDiv.innerHTML = `<div class="card">Nessuna partita trovata per la data ${dateStr} nei campionati principali.</div>`;
             return;
         }
 
@@ -185,13 +180,12 @@
                 hour: '2-digit', minute: '2-digit'
             });
 
-            const competitionName = match.competition ? match.competition.name : 'Competizione';
-            const statusText = match.status === 'TIMED' || match.status === 'SCHEDULED' ? `Ore ${time}` : `Stato: ${match.status}`;
+            const compName = match.competition ? match.competition.name : 'Campionato';
 
             card.innerHTML = `
-                <div class="comp-title">${competitionName}</div>
+                <div class="comp-title">${compName}</div>
                 <div class="match-title">${match.homeTeam.name} vs ${match.awayTeam.name}</div>
-                <div class="match-info">${statusText} | Giornata: ${match.matchday || '-'}</div>
+                <div class="match-info">Ore ${time} | Stato: ${match.status}</div>
             `;
 
             resultsDiv.appendChild(card);
