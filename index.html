@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Partite di Oggi</title>
+    <title>Football Data Viewer</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -53,7 +53,7 @@
             margin-bottom: 6px;
         }
 
-        input, button {
+        input, select, button {
             width: 100%;
             padding: 12px;
             border-radius: 8px;
@@ -79,14 +79,6 @@
             margin-bottom: 10px;
         }
 
-        .comp-title {
-            font-size: 0.85rem;
-            color: var(--accent);
-            font-weight: bold;
-            margin-bottom: 4px;
-            text-transform: uppercase;
-        }
-
         .match-title {
             font-weight: bold;
             font-size: 1.05rem;
@@ -108,16 +100,26 @@
 <body>
 
 <div class="container">
-    <h1>Partite di Oggi</h1>
+    <h1>Football Data Viewer</h1>
 
     <div class="card">
         <label for="apiKey">Chiave API (Football-Data.org)</label>
         <input type="text" id="apiKey" placeholder="Inserisci il tuo X-Auth-Token">
 
+        <label for="competition">Campionato</label>
+        <select id="competition">
+            <option value="SA">Serie A (Italia)</option>
+            <option value="CL">Champions League</option>
+            <option value="EL">Europa League</option>
+            <option value="PL">Premier League (Inghilterra)</option>
+            <option value="PD">La Liga (Spagna)</option>
+            <option value="BL1">Bundesliga (Germania)</option>
+        </select>
+
         <label for="matchDate">Seleziona Data</label>
         <input type="date" id="matchDate">
 
-        <button onclick="fetchTodayMatches()">Cerca Partite</button>
+        <button onclick="fetchMatchesByDate()">Cerca Partite</button>
     </div>
 
     <div id="results"></div>
@@ -126,8 +128,9 @@
 <script>
     document.getElementById('matchDate').valueAsDate = new Date();
 
-    async function fetchTodayMatches() {
+    async function fetchMatchesByDate() {
         const apiKey = document.getElementById('apiKey').value.trim().replace(/[()]/g, '');
+        const comp = document.getElementById('competition').value;
         const selectedDate = document.getElementById('matchDate').value;
         const resultsDiv = document.getElementById('results');
 
@@ -136,28 +139,30 @@
             return;
         }
 
-        resultsDiv.innerHTML = '<div class="loading">Ricerca partite in corso...</div>';
+        if (!selectedDate) {
+            alert('Seleziona una data');
+            return;
+        }
 
-        // Lista dei codici competizione principali inclusi nel piano Free
-        const competitions = ['SA', 'CL', 'EL', 'PL', 'PD', 'BL1'];
-        let allMatches = [];
+        resultsDiv.innerHTML = '<div class="loading">Ricerca in corso...</div>';
+
+        const targetUrl = `https://api.football-data.org/v4/competitions/${comp}/matches`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl + '&X-Auth-Token=' + apiKey)}`;
 
         try {
-            for (const comp of competitions) {
-                const targetUrl = `https://api.football-data.org/v4/competitions/${comp}/matches?dateFrom=${selectedDate}&dateTo=${selectedDate}`;
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl + '&X-Auth-Token=' + apiKey)}`;
-                
-                const response = await fetch(proxyUrl);
-                if (response.ok) {
-                    const wrapper = await response.json();
-                    const data = JSON.parse(wrapper.contents);
-                    if (data.matches && data.matches.length > 0) {
-                        allMatches = allMatches.concat(data.matches);
-                    }
-                }
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error('Errore di connessione.');
+
+            const wrapper = await response.json();
+            const data = JSON.parse(wrapper.contents);
+
+            if (data.message) {
+                throw new Error(data.message);
             }
 
-            renderMatches(allMatches, selectedDate);
+            // Filtra le partite per la data esatta selezionata
+            const matches = data.matches.filter(m => m.utcDate.startsWith(selectedDate));
+            renderMatches(matches, selectedDate);
         } catch (error) {
             resultsDiv.innerHTML = `<div class="card" style="border-color: #ef4444; color: #ef4444;">Errore: ${error.message}</div>`;
         }
@@ -168,7 +173,7 @@
         resultsDiv.innerHTML = '';
 
         if (!matches || matches.length === 0) {
-            resultsDiv.innerHTML = `<div class="card">Nessuna partita trovata per la data ${dateStr} nei campionati principali.</div>`;
+            resultsDiv.innerHTML = `<div class="card">Nessuna partita trovata per la data ${dateStr} in questo campionato.</div>`;
             return;
         }
 
@@ -180,12 +185,9 @@
                 hour: '2-digit', minute: '2-digit'
             });
 
-            const compName = match.competition ? match.competition.name : 'Campionato';
-
             card.innerHTML = `
-                <div class="comp-title">${compName}</div>
                 <div class="match-title">${match.homeTeam.name} vs ${match.awayTeam.name}</div>
-                <div class="match-info">Ore ${time} | Stato: ${match.status}</div>
+                <div class="match-info">Orario: ${time} | Giornata: ${match.matchday || '-'} | Stato: ${match.status}</div>
             `;
 
             resultsDiv.appendChild(card);
